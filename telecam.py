@@ -6,7 +6,7 @@ import json
 
 from telegram.ext import Updater, CommandHandler
 
-logging.basicConfig(format='[%(asctime)s] %(levelname)s: %(name)s - %(message)s', level=logging.INFO)
+logging.basicConfig(format='[%(asctime)s] %(levelname)s: %(name)s - %(message)s', level=logging.INFO, filename="telecam.log")
 
 
 class TelecamException(Exception):
@@ -78,7 +78,5 @@ def main():
 
 if __name__ == "__main__":
   main()
-
-
 
 
