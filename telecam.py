@@ -43,7 +43,7 @@ class TelegramBot():
     def __enter__(self):
         return self
 
-    def __exit__(self):
+    def __exit__(self, excType, excValue, excTrace):
         self.updater.stop()
 
     def addHandler(self, cmd, func, restricted=True):
@@ -98,8 +98,9 @@ def main():
                 bot.start()
         except TelecamException as e:
                 print(e)
-        except KeyboardInterruptException:
-            pass
+        except KeyboardInterrupt:
+            print("Telecam exit.")
+            return
 
 
 if __name__ == "__main__":
