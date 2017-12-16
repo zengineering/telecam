@@ -92,10 +92,10 @@ def main():
     else:
         try:
             print("Starting telecam.")
-            bot = TelegramBot(config_file=config_file)
-            print("token: {}\nauthorized_users: {}".format(bot.token, bot.authorized_users))
-            bot.addHandlers((func.__name__, func) for func in (hello, pic, vid))
-            bot.start()
+            with TelegramBot(config_file=config_file) as bot:
+                print("token: {}\nauthorized_users: {}".format(bot.token, bot.authorized_users))
+                bot.addHandlers((func.__name__, func) for func in (hello, pic, vid))
+                bot.start()
         except TelecamException as e:
                 print(e)
         except KeyboardInterruptException:
