@@ -15,14 +15,14 @@ logging.basicConfig(format='[%(asctime)s] %(levelname)s: %(name)s - %(message)s'
 class TelecamException(Exception):
     pass
 
-def hello(bot, update):
+def hello(bot, update, args=None):
     bot.send_message(chat_id=update.message.chat_id, text="Hello World!")
 
-def pic(bot, update, args):
+def pic(bot, update, args=None):
     bot.send_message(chat_id=update.message.chat_id, text="pic: ({})".format(','.join(args)))
  
-def vid(bot, update, args):
-    bot.send_message(chat_id=update.message.chat_id, text="pic: ({})".format(','.join(args)))
+def vid(bot, update, args=None):
+    bot.send_message(chat_id=update.message.chat_id, text="vid: ({})".format(','.join(args)))
 
 def help(bot, update):
     bot.send_message(chat_id=update.message.chat_id, text="show commands")
@@ -91,9 +91,8 @@ def main():
             print("Starting telecam.")
             with TelegramBot(config_file=config_file) as bot:
                 print("token: {}\nauthorized_users: {}".format(bot.token, bot.authorized_users))
-                for func in (pic, vid):
+                for func in (pic, vid, hello):
                     bot.addHandler(func.__name__, func)
-                bot.addHandler('hello', hello, passArgs=False)
                 bot.start()
         except (TelecamException,KeyboardInterrupt) as e:
                 print(e)
