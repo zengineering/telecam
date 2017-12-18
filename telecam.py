@@ -17,13 +17,15 @@ class TelecamException(Exception):
 
 def hello(bot, update):
     bot.send_message(chat_id=update.message.chat_id, text="Hello World!")
-    print("User: {}".format(update.effective_user.id))
 
-def pic(bot, update):
-    bot.send_message(chat_id=update.message.chat_id, text="pic")
+def pic(bot, update, args):
+    bot.send_message(chat_id=update.message.chat_id, text="pic: ({})".format(','.join(args)))
  
-def vid(bot, update):
-    bot.send_message(chat_id=update.message.chat_id, text="vid")
+def vid(bot, update, args):
+    bot.send_message(chat_id=update.message.chat_id, text="pic: ({})".format(','.join(args)))
+
+def help(bot, update):
+    bot.send_message(chat_id=update.message.chat_id, text="show commands")
 
 class TelegramBot():
     def __init__(self, *, token=None, authorized_users=None, config=None, config_file=None):
@@ -46,14 +48,9 @@ class TelegramBot():
     def __exit__(self, excType, excValue, excTrace):
         self.updater.stop()
 
-    def addHandler(self, cmd, func, restricted=True):
+    def addHandler(self, cmd, func, restricted=True, passArgs=True):
         handler = self.restricted(func) if restricted else func
-        self.updater.dispatcher.add_handler(CommandHandler(cmd, handler))
-
-    def addHandlers(self, pairs, restricted=True):
-        for cmd, func in pairs:
-            handler = self.restricted(func) if restricted else func
-            self.updater.dispatcher.add_handler(CommandHandler(cmd, handler))
+        self.updater.dispatcher.add_handler(CommandHandler(cmd, handler, pass_args=passArgs))
 
     def start(self):
         self.updater.start_polling()
@@ -94,13 +91,12 @@ def main():
             print("Starting telecam.")
             with TelegramBot(config_file=config_file) as bot:
                 print("token: {}\nauthorized_users: {}".format(bot.token, bot.authorized_users))
-                bot.addHandlers((func.__name__, func) for func in (hello, pic, vid))
+                for func in (pic, vid):
+                    bot.addHandler(func.__name__, func)
+                bot.addHandler('hello', hello, passArgs=False)
                 bot.start()
-        except TelecamException as e:
+        except (TelecamException,KeyboardInterrupt) as e:
                 print(e)
-        except KeyboardInterrupt:
-            print("Telecam exit.")
-            return
 
 
 if __name__ == "__main__":
