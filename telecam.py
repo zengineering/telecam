@@ -7,40 +7,61 @@ import json
 import sys
 import argparse
 
+import telegram
 from telegram.ext import Updater, CommandHandler
 
 logging.basicConfig(format='[%(asctime)s] %(levelname)s: %(name)s - %(message)s', level=logging.INFO, filename="telecam.log")
+
+#
+# callback funcs
+#
+def hello(bot, update, args=None):
+    bot.send_message(chat_id=update.message.chat_id, text="Hello World!")
+
+def picture(bot, update, args=None):
+    bot.send_message(chat_id=update.message.chat_id, text="pic: ({})".format(','.join(args)))
+ 
+def video(bot, update, args=None):
+    bot.send_message(chat_id=update.message.chat_id, text="video: ({})".format(','.join(args)))
+    #bot.send_chat_action(chat_id=chat_id, action=telegram.ChatAction.TYPING)
+    time.sleep(2)
+    bot.send_message(chat_id=update.message.chat_id, text="video done")
+
+def help(bot, update):
+    bot.send_message(chat_id=update.message.chat_id, text="show commands")
 
 
 class TelecamException(Exception):
     pass
 
-def hello(bot, update, args=None):
-    bot.send_message(chat_id=update.message.chat_id, text="Hello World!")
-
-def pic(bot, update, args=None):
-    bot.send_message(chat_id=update.message.chat_id, text="pic: ({})".format(','.join(args)))
- 
-def vid(bot, update, args=None):
-    bot.send_message(chat_id=update.message.chat_id, text="vid: ({})".format(','.join(args)))
-
-def help(bot, update):
-    bot.send_message(chat_id=update.message.chat_id, text="show commands")
-
 class TelegramBot():
-    def __init__(self, *, token=None, authorized_users=None, config=None, config_file=None):
+    def __init__(self, *, token=None, authorized_users=None, handlers=None, config=None, config_file=None):
+        '''
+            token: Telegram bot API token
+            authorized_users: List of authorized user IDs. 
+                              Communication from all other users is logged, then ignored.
+            handlers: List of command handlers (callback functions)
+            namedHandlers: Dict of {command name: handler}
+            config: Dict of other arguments (token, authorized_users)
+            config_file: Json file from which to read config dict
+        '''
         if config is not None:
             self.loadConfig(config)
         elif config_file is not None:
             self.loadConfigFromFile(config_file)
         else:
             if not any((token, authorized_users)):
-                raise TelecamException("Either config or all other keyword-args must be provided.")
+                raise TelecamException("Either config or 'token' and 'authorized_users' args must be provided.")
             else:
                 self.token = token
                 self.authorized_users = authorized_users
 
         self.updater = Updater(token=self.token)
+
+        if handlers is not None:
+            for name, cb in handlers.items():
+                self.addHandler(name, cb)
+
         
     def __enter__(self):
         return self
@@ -89,10 +110,13 @@ def main():
     else:
         try:
             print("Starting telecam.")
-            with TelegramBot(config_file=config_file) as bot:
-                print("token: {}\nauthorized_users: {}".format(bot.token, bot.authorized_users))
-                for func in (pic, vid, hello):
-                    bot.addHandler(func.__name__, func)
+            handlers = {
+                'picture': picture, 'pic': picture,
+                'video': video, 'vid': video,
+                'help': help
+            }
+            with TelegramBot(config_file=config_file, handlers=handlers) as bot:
+                bot.addHandler('hello', hello)
                 bot.start()
         except (TelecamException,KeyboardInterrupt) as e:
                 print(e)
