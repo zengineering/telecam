@@ -7,7 +7,8 @@ from sys import stderr
 from time import sleep
 from functools import wraps 
 from io import BytesIO
-from picamera import PiCamera
+from picamera import PiCamera, Color
+import datetime
 
 import telegram
 from telegram.ext import Updater, CommandHandler
@@ -22,11 +23,34 @@ def hello(bot, update, args=None):
 
 def picture(bot, update, args=None):
     bot.send_message(chat_id=update.message.chat_id, text="pic: ({})".format(','.join(args)))
+    with BytesIO() as buffer:
+        bot.camera.capture(buffer, 'jpeg')
+        buffer.seek(0)
+        bot.send_photo(update.message.chat_id, photo=buffer)
  
 def video(bot, update, args=None):
     bot.send_message(chat_id=update.message.chat_id, text="video: ({})".format(','.join(args)))
+    if args:
+        if args[0] < 0:
+            duration = 0
+        elif args[0] > 60:
+            duration = 60
+        else:
+            duration = args[0]
+
     #bot.send_chat_action(chat_id=chat_id, action=telegram.ChatAction.RECORD_VIDEO)
-    sleep(2)
+    with BytesIO() as buffer:
+        bot.camera.annotate_background = Color('black')
+        bot.camera.annotate_text = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        bot.camera.start_recording(buffer, format='h264', quality=22)
+        start = datetime.datetime.now()
+        while (datetime.datetime.now() - start).seconds < 30:
+            bot.camera.annotate_text = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            bot.camera.wait_recording(0.2)
+        bot.camera.stop_recording() 
+        buffer.seek(0)
+        bot.send_video(update.message.chad_id, video=buffer)
+
     bot.send_message(chat_id=update.message.chat_id, text="video done")
 
 def help(bot, update):
@@ -37,9 +61,10 @@ class TelecamException(Exception):
     pass
 
 class TelegramBot():
-    def __init__(self, *, token=None, authorized_users=None, handlers=None, config=None, config_file=None):
+    def __init__(self, camera, *, token=None, authorized_users=None, handlers=None, config=None, config_file=None):
         '''
             token: Telegram bot API token
+            camera: PiCamera instance
             authorized_users: List of authorized user IDs. 
                               Communication from all other users is logged, then ignored.
             handlers: List of command handlers (callback functions)
@@ -63,6 +88,8 @@ class TelegramBot():
         if handlers is not None:
             for name, cb in handlers.items():
                 self.addHandler(name, cb)
+
+        self.camera = camera
 
         
     def __enter__(self):
@@ -118,7 +145,7 @@ def main():
                 'video': video, 'vid': video,
                 'help': help
             }
-            with PiCamera() as camera:
+            with PiCamera(resolution=(1280, 720), framerate=24) as camera:
                 with TelegramBot(config_file=config_file, handlers=handlers) as bot:
                     bot.addHandler('hello', hello)
                     bot.start()
