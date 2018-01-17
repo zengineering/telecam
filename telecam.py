@@ -29,22 +29,24 @@ def picture(bot, update, args=None):
         bot.send_photo(update.message.chat_id, photo=buffer)
  
 def video(bot, update, args=None):
-    bot.send_message(chat_id=update.message.chat_id, text="video: ({})".format(','.join(args)))
     if args:
         if args[0] < 0:
-            duration = 0
+            duration = 1
         elif args[0] > 60:
             duration = 60
         else:
             duration = args[0]
+    else:
+        duration = 10
+    bot.send_message(chat_id=update.message.chat_id, text="video: ({})".format(duration))
 
     #bot.send_chat_action(chat_id=chat_id, action=telegram.ChatAction.RECORD_VIDEO)
     with BytesIO() as buffer:
         bot.camera.annotate_background = Color('black')
         bot.camera.annotate_text = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        bot.camera.start_recording(buffer, format='h264', quality=22)
+        bot.camera.start_recording(buffer, format='h264', quality=30)
         start = datetime.datetime.now()
-        while (datetime.datetime.now() - start).seconds < 30:
+        while (datetime.datetime.now() - start).seconds < duration:
             bot.camera.annotate_text = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             bot.camera.wait_recording(0.2)
         bot.camera.stop_recording() 
@@ -145,8 +147,8 @@ def main():
                 'video': video, 'vid': video,
                 'help': help
             }
-            with PiCamera(resolution=(1280, 720), framerate=24) as camera:
-                with TelegramBot(config_file=config_file, handlers=handlers) as bot:
+            with PiCamera(resolution=(640, 480), framerate=12) as camera:
+                with TelegramBot(camera, config_file=config_file, handlers=handlers) as bot:
                     bot.addHandler('hello', hello)
                     bot.start()
         except (TelecamException,KeyboardInterrupt) as e:
