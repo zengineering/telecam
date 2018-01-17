@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 import os
 import logging
-import time
-import functools
 import json
-import sys
 import argparse
+from sys import stderr
+from time import sleep
+from functools import wraps 
+from io import BytesIO
+from picamera import PiCamera
 
 import telegram
 from telegram.ext import Updater, CommandHandler
@@ -23,8 +25,8 @@ def picture(bot, update, args=None):
  
 def video(bot, update, args=None):
     bot.send_message(chat_id=update.message.chat_id, text="video: ({})".format(','.join(args)))
-    #bot.send_chat_action(chat_id=chat_id, action=telegram.ChatAction.TYPING)
-    time.sleep(2)
+    #bot.send_chat_action(chat_id=chat_id, action=telegram.ChatAction.RECORD_VIDEO)
+    sleep(2)
     bot.send_message(chat_id=update.message.chat_id, text="video done")
 
 def help(bot, update):
@@ -86,7 +88,7 @@ class TelegramBot():
             self.loadConfig(json.load(f))
 
     def restricted(self, func):
-        @functools.wraps(func)
+        @wraps(func)
         def wrapper(bot, update, *args, **kwargs):
             user_id = update.effective_user.id
             if user_id not in self.authorized_users:
@@ -103,21 +105,23 @@ def parseArgs():
 
 def main():
     #config_file = os.getenv("TELECAM_CONFIG")
+    print("Starting telecam.")
     args = parseArgs()
     config_file = args.config
     if config_file is None:
-        print("No config file found. Is the environment variable TELECAM_CONFIG set?", file=sys.stderr)
+        print("No config file found. Is the environment variable TELECAM_CONFIG set?", file=stderr)
     else:
         try:
-            print("Starting telecam.")
+            print("Starting Bot.")
             handlers = {
                 'picture': picture, 'pic': picture,
                 'video': video, 'vid': video,
                 'help': help
             }
-            with TelegramBot(config_file=config_file, handlers=handlers) as bot:
-                bot.addHandler('hello', hello)
-                bot.start()
+            with PiCamera() as camera:
+                with TelegramBot(config_file=config_file, handlers=handlers) as bot:
+                    bot.addHandler('hello', hello)
+                    bot.start()
         except (TelecamException,KeyboardInterrupt) as e:
                 print(e)
 
