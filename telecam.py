@@ -15,18 +15,30 @@ from telegram.ext import Updater, CommandHandler
 
 logging.basicConfig(format='[%(asctime)s] %(levelname)s: %(name)s - %(message)s', level=logging.INFO, filename="telecam.log")
 
+def cameraWrap(f, camera):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        return f(*args, camera=camera, **kwargs)
+    return wrapper
+
+
 #
 # callback funcs
 #
 def hello(bot, update, args=None):
     bot.send_message(chat_id=update.message.chat_id, text="Hello World!")
 
-def picture(bot, update, args=None):
+def picture(bot, update, args=None, camera=None):
+    logging.info("Picture request.")
     bot.send_message(chat_id=update.message.chat_id, text="pic: ({})".format(','.join(args)))
     with BytesIO() as buffer:
-        bot.camera.capture(buffer, 'jpeg')
+        logging.info("Buffer open.")
+        camera.capture(buffer, 'jpeg')
+        logging.info("Capture done.")
         buffer.seek(0)
         bot.send_photo(update.message.chat_id, photo=buffer)
+        logging.info("Picture sent.")
+
  
 def video(bot, update, args=None):
     if args:
@@ -42,14 +54,14 @@ def video(bot, update, args=None):
 
     #bot.send_chat_action(chat_id=chat_id, action=telegram.ChatAction.RECORD_VIDEO)
     with BytesIO() as buffer:
-        bot.camera.annotate_background = Color('black')
-        bot.camera.annotate_text = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        bot.camera.start_recording(buffer, format='h264', quality=30)
+        camera.annotate_background = Color('black')
+        camera.annotate_text = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        camera.start_recording(buffer, format='h264', quality=30)
         start = datetime.datetime.now()
         while (datetime.datetime.now() - start).seconds < duration:
-            bot.camera.annotate_text = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            bot.camera.wait_recording(0.2)
-        bot.camera.stop_recording() 
+            camera.annotate_text = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            camera.wait_recording(0.2)
+        camera.stop_recording() 
         buffer.seek(0)
         bot.send_video(update.message.chad_id, video=buffer)
 
@@ -63,7 +75,7 @@ class TelecamException(Exception):
     pass
 
 class TelegramBot():
-    def __init__(self, camera, *, token=None, authorized_users=None, handlers=None, config=None, config_file=None):
+    def __init__(self, *, token=None, authorized_users=None, handlers=None, config=None, config_file=None):
         '''
             token: Telegram bot API token
             camera: PiCamera instance
@@ -90,8 +102,6 @@ class TelegramBot():
         if handlers is not None:
             for name, cb in handlers.items():
                 self.addHandler(name, cb)
-
-        self.camera = camera
 
         
     def __enter__(self):
@@ -140,19 +150,22 @@ def main():
     if config_file is None:
         print("No config file found. Is the environment variable TELECAM_CONFIG set?", file=stderr)
     else:
-        try:
-            print("Starting Bot.")
+        #try:
+        print("Starting Bot.")
+        with PiCamera(resolution=(640, 480), framerate=12) as camera:
             handlers = {
-                'picture': picture, 'pic': picture,
+                'picture': cameraWrap(picture, camera), 'pic': picture,
                 'video': video, 'vid': video,
-                'help': help
+                'help': help,
+                'hello': hello
+
             }
-            with PiCamera(resolution=(640, 480), framerate=12) as camera:
-                with TelegramBot(camera, config_file=config_file, handlers=handlers) as bot:
-                    bot.addHandler('hello', hello)
-                    bot.start()
-        except (TelecamException,KeyboardInterrupt) as e:
-                print(e)
+            with TelegramBot(config_file=config_file, handlers=handlers) as bot:
+                bot.addHandler('hello', hello)
+                bot.start()
+        #except (TelecamException,KeyboardInterrupt) as e:
+        #        print(e)
+        #        raise e
 
 
 if __name__ == "__main__":
