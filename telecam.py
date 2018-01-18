@@ -13,7 +13,7 @@ import datetime
 import telegram
 from telegram.ext import Updater, CommandHandler
 
-logging.basicConfig(format='[%(asctime)s] %(levelname)s: %(name)s - %(message)s', level=logging.INFO, filename="telecam.log")
+logging.basicConfig(format='[%(asctime)s] %(levelname)s: %(name)s - %(message)s', level=logging.DEBUG, filename="telecam.log")
 
 def cameraWrap(f, camera):
     @wraps(f)
@@ -21,6 +21,21 @@ def cameraWrap(f, camera):
         return f(*args, camera=camera, **kwargs)
     return wrapper
 
+def recordVideo(camera, buffer, length=10, timestamp=True):
+    logging.info("Recording {}-sec video with{} timestamp".format(length, '' if timestamp else 'out'))
+    with BytesIO() as buffer:
+        camera.annotate_background = Color('black')
+        camera.annotate_text = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        logging.debug("Annoation set up.")
+        camera.start_recording(buffer, format='h264', quality=25)
+        logging.debug("Recoding started.")
+        start = datetime.datetime.now()
+        while (datetime.datetime.now() - start).seconds < length:
+            camera.annotate_text = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            camera.wait_recording(0.2)
+        camera.stop_recording() 
+        logging.debug("Recoding done.")
+        buffer.seek(0)
 
 #
 # callback funcs
@@ -30,42 +45,35 @@ def hello(bot, update, args=None):
 
 def picture(bot, update, args=None, camera=None):
     logging.info("Picture request.")
-    bot.send_message(chat_id=update.message.chat_id, text="pic: ({})".format(','.join(args)))
+    bot.send_message(chat_id=update.message.chat_id, text="snapping pic...")
+    #bot.send_chat_action(chat_id=chat_id, action=telegram.ChatAction.UPLOAD_PHOTO)
     with BytesIO() as buffer:
-        logging.info("Buffer open.")
+        camera.annotate_text = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         camera.capture(buffer, 'jpeg')
-        logging.info("Capture done.")
         buffer.seek(0)
         bot.send_photo(update.message.chat_id, photo=buffer)
-        logging.info("Picture sent.")
 
  
-def video(bot, update, args=None):
+def video(bot, update, args=None, camera=None):
+    logging.info("Video request.")
+    videoLength = 10
     if args:
-        if args[0] < 0:
-            duration = 1
-        elif args[0] > 60:
-            duration = 60
-        else:
-            duration = args[0]
-    else:
-        duration = 10
-    bot.send_message(chat_id=update.message.chat_id, text="video: ({})".format(duration))
+        try: 
+            videoLength = int(args[0])
+            if videoLength < 0:
+                videoLength = 1
+            elif videoLength > 60:
+                videoLength = 60
+        except ValueError:
+            videoLength = 10
 
-    #bot.send_chat_action(chat_id=chat_id, action=telegram.ChatAction.RECORD_VIDEO)
+    bot.send_message(chat_id=update.message.chat_id, text="recording {}-second video".format(videoLength))
+
     with BytesIO() as buffer:
-        camera.annotate_background = Color('black')
-        camera.annotate_text = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        camera.start_recording(buffer, format='h264', quality=30)
-        start = datetime.datetime.now()
-        while (datetime.datetime.now() - start).seconds < duration:
-            camera.annotate_text = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            camera.wait_recording(0.2)
-        camera.stop_recording() 
-        buffer.seek(0)
-        bot.send_video(update.message.chad_id, video=buffer)
+        recordVideo(camera, buffer, videoLength)
+        bot.send_video(update.message.chat_id, video=buffer)
+        bot.send_message(chat_id=update.message.chat_id, text="video sent")
 
-    bot.send_message(chat_id=update.message.chat_id, text="video done")
 
 def help(bot, update):
     bot.send_message(chat_id=update.message.chat_id, text="show commands")
@@ -150,22 +158,25 @@ def main():
     if config_file is None:
         print("No config file found. Is the environment variable TELECAM_CONFIG set?", file=stderr)
     else:
-        #try:
-        print("Starting Bot.")
-        with PiCamera(resolution=(640, 480), framerate=12) as camera:
-            handlers = {
-                'picture': cameraWrap(picture, camera), 'pic': picture,
-                'video': video, 'vid': video,
-                'help': help,
-                'hello': hello
+        try:
+            print("Starting Bot.")
+            with PiCamera(resolution=(1280, 720), framerate=24) as camera:
+                camera.annotate_text_size = 16
+                cameraHandlers = {
+                    'picture': picture, 'pic': picture,
+                    'video': video,     'vid': video,
+                }
+                cameraHandlers = { name: cameraWrap(handler, camera) for name, handler in cameraHandlers.items() }
+                textHandlers = {
+                    'help': help,
+                    'hello': hello
+                }
 
-            }
-            with TelegramBot(config_file=config_file, handlers=handlers) as bot:
-                bot.addHandler('hello', hello)
-                bot.start()
-        #except (TelecamException,KeyboardInterrupt) as e:
-        #        print(e)
-        #        raise e
+                with TelegramBot(config_file=config_file, handlers={**cameraHandlers, **textHandlers}) as bot:
+                    bot.start()
+        except (TelecamException,KeyboardInterrupt) as e:
+                print(e)
+                raise e
 
 
 if __name__ == "__main__":
