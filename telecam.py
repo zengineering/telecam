@@ -23,19 +23,18 @@ def cameraWrap(f, camera):
 
 def recordVideo(camera, buffer, length=10, timestamp=True):
     logging.info("Recording {}-sec video with{} timestamp".format(length, '' if timestamp else 'out'))
-    with BytesIO() as buffer:
-        camera.annotate_background = Color('black')
+    camera.annotate_background = Color('black')
+    camera.annotate_text = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    logging.debug("Annoation set up.")
+    camera.start_recording(buffer, format='h264', quality=25)
+    logging.debug("Recoding started.")
+    start = datetime.datetime.now()
+    while (datetime.datetime.now() - start).seconds < length:
         camera.annotate_text = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        logging.debug("Annoation set up.")
-        camera.start_recording(buffer, format='h264', quality=25)
-        logging.debug("Recoding started.")
-        start = datetime.datetime.now()
-        while (datetime.datetime.now() - start).seconds < length:
-            camera.annotate_text = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            camera.wait_recording(0.2)
-        camera.stop_recording() 
-        logging.debug("Recoding done.")
-        buffer.seek(0)
+        camera.wait_recording(0.2)
+    camera.stop_recording() 
+    logging.debug("Recoding done.")
+    buffer.seek(0)
 
 #
 # callback funcs
